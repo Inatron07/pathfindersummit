@@ -8,6 +8,13 @@ const aa = require('./aaClient');
 
 const STANDARD = 'Process all alerts (standard run). Claim every new alert, investigate, file and complete every open case, then report.';
 
+// FAST RUN: the server already scanned the bank, so the agent skips its own status check.
+function fastInstruction(cases) {
+  const ids = cases.map((c) => c.workId);
+  const claim = cases.some((c) => c.state === 'new') ? 'yes' : 'no';
+  return `FAST RUN work ids: ${ids.join(',')}. claim: ${claim}. Investigate, file and complete every listed case, then report.`;
+}
+
 let running = null; // { startedAt, ids, attempt, lastChangeAt, lastSig, phase, cancelled }
 let lastResult = null;
 let lastNewSig = '';
@@ -96,7 +103,8 @@ async function startProcess(reply) {
   const ids = before.cases.filter((c) => c.state !== 'completed').map((c) => c.workId);
   if (!ids.length) return reply('Nothing to process. All alerts are completed.');
 
-  await aa.startRun(STANDARD);
+  const open = before.cases.filter((c) => c.state !== 'completed');
+  await aa.startRun(fastInstruction(open));
   const now = Date.now();
   running = { startedAt: now, ids, attempt: 1, lastChangeAt: now, lastSig: sig(before.cases, ids), cancelled: false };
   await reply(`Started the AA agent on ${ids.length} alerts: ${ids.map((i) => '#' + i).join(', ')}.\nIt takes about 5 minutes. I will send the results here.`);
@@ -134,7 +142,7 @@ async function watch(reply) {
       const left = cases.filter((c) => c.state !== 'completed').length;
       console.warn(`[ftm] no progress for ${config.ftm.stallMin} min, restarting (attempt ${run.attempt})`);
       try {
-        await aa.startRun(STANDARD);
+        await aa.startRun(fastInstruction(cases.filter((c) => c.state !== 'completed')));
         await reply(`AA got stuck (no progress for ${config.ftm.stallMin} min). Started a fresh run for the ${left} unfinished case(s), attempt ${run.attempt}.`);
       } catch (err) {
         await reply(`AA got stuck and the restart failed: ${err.message}`.slice(0, 900));
