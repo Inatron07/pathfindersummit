@@ -43,12 +43,14 @@ async function notifyAdmins(msg) {
 // Returns true if the message was an FTM command (so the lead agent skips it).
 async function handle(from, text) {
   if (!config.ftm.enabled || !isAdmin(from)) return false;
-  const cmd = match(text);
-  if (!cmd) return false;
+  // Any other message from an admin number gets the status plus the command list,
+  // so "hi" (or any text after deleting the chat) is enough to get going.
+  const cmd = match(text) || 'menu';
   const reply = (msg) =>
     whatsapp.sendTextMessage(from, msg).then(() => console.log(`[ftm] replied ${cmd}: ${msg.split('\n')[0]}`));
   try {
     if (cmd === 'help') await reply(helpText());
+    if (cmd === 'menu') await reply((await statusText()) + '\n\n' + helpText());
     if (cmd === 'status') await reply(await statusText());
     if (cmd === 'result') await reply(lastResult || 'No run finished yet. Send PROCESS to start one.');
     if (cmd === 'process') await startProcess(reply);
@@ -64,7 +66,7 @@ function helpText() {
   return [
     '*Follow the Money bot*',
     'STATUS: alert counts, and progress if a run is going',
-    'PROCESS: claim, investigate, file and complete every open alert (about 5 min)',
+    'PROCESS: claim, investigate, file and complete every open alert (about 3 min)',
     'RESULT: the last run report',
     'CANCEL: stop waiting on the current run (unlocks PROCESS)',
   ].join('\n');
