@@ -219,6 +219,14 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 if (config.ftm.enabled && config.ftm.alertPollMin > 0) {
   cron.schedule(`*/${config.ftm.alertPollMin} * * * *`, () => ftm.checkForNewAlerts());
 }
+// Keep a free Render instance awake so the alert check keeps running
+// (free services sleep after 15 min without inbound traffic).
+if (config.ftm.enabled && config.ftm.keepAliveUrl) {
+  const axios = require('axios');
+  cron.schedule('*/10 * * * *', () =>
+    axios.get(`${config.ftm.keepAliveUrl}/health`, { timeout: 20000 }).catch(() => {})
+  );
+}
 
 app.listen(config.port, () => {
   console.log(`WhatsApp outreach agent listening on port ${config.port}`);

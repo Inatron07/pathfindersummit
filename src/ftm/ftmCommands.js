@@ -7,26 +7,30 @@ const bank = require('./bankClient');
 const aa = require('./aaClient');
 
 const STANDARD = 'Process all alerts (standard run). Claim every new alert, investigate, file and complete every open case, then report.';
-const STATUS_ONLY = 'STATUS only. Report counts of new, assigned and completed alerts. Do not claim or file anything.';
 
-let running = null; // { startedAt, ids }
+let running = null; // { startedAt, ids, attempt, lastChangeAt, lastSig, phase, cancelled }
 let lastResult = null;
-let lastNewCount = 0;
+let lastNewSig = '';
 
 const COMMANDS = {
   help: /^(help|menu|\?)$/i,
   status: /^(status|alerts)$/i,
   process: /^(process|process all|run|go)$/i,
   result: /^(result|results|last|report)$/i,
+  cancel: /^(cancel|stop|reset run)$/i,
 };
 
-function isAdmin(phone) {
-  return config.ftm.adminPhones.includes(String(phone));
-}
+const isAdmin = (phone) => config.ftm.adminPhones.includes(String(phone));
+const match = (text) => Object.keys(COMMANDS).find((k) => COMMANDS[k].test(String(text || '').trim())) || null;
+const mins = (ms) => `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
 
-function match(text) {
-  const t = String(text || '').trim();
-  return Object.keys(COMMANDS).find((k) => COMMANDS[k].test(t)) || null;
+async function notifyAdmins(msg) {
+  for (const phone of config.ftm.adminPhones) {
+    await whatsapp
+      .sendTextMessage(phone, msg)
+      .then(() => console.log(`[ftm] sent to ${phone}: ${msg.split('\n')[0]}`))
+      .catch((e) => console.warn('[ftm] send failed (24h window closed?)', e.response?.data?.error?.message || e.message));
+  }
 }
 
 // Returns true if the message was an FTM command (so the lead agent skips it).
@@ -34,12 +38,14 @@ async function handle(from, text) {
   if (!config.ftm.enabled || !isAdmin(from)) return false;
   const cmd = match(text);
   if (!cmd) return false;
-  const reply = (msg) => whatsapp.sendTextMessage(from, msg);
+  const reply = (msg) =>
+    whatsapp.sendTextMessage(from, msg).then(() => console.log(`[ftm] replied ${cmd}: ${msg.split('\n')[0]}`));
   try {
     if (cmd === 'help') await reply(helpText());
-    if (cmd === 'status') await reply(statusText(await bank.scan()));
+    if (cmd === 'status') await reply(await statusText());
     if (cmd === 'result') await reply(lastResult || 'No run finished yet. Send PROCESS to start one.');
     if (cmd === 'process') await startProcess(reply);
+    if (cmd === 'cancel') await cancel(reply);
   } catch (err) {
     console.error('[ftm] command failed', err);
     await reply(`Something went wrong: ${err.message}`.slice(0, 900));
@@ -50,61 +56,99 @@ async function handle(from, text) {
 function helpText() {
   return [
     '*Follow the Money bot*',
-    'STATUS: counts of new, assigned and completed alerts',
+    'STATUS: alert counts, and progress if a run is going',
     'PROCESS: claim, investigate, file and complete every open alert (about 5 min)',
     'RESULT: the last run report',
+    'CANCEL: stop waiting on the current run (unlocks PROCESS)',
   ].join('\n');
 }
 
-function statusText({ cases, counts }) {
-  const lines = [
-    '*Alert status*',
+function caseLines(cases) {
+  return cases.map((c) => `#${c.workId} ${c.rule} ${c.subject}: ${c.state}${c.disposition ? ` (${c.disposition})` : ''}`);
+}
+
+async function statusText(scan) {
+  const { cases, counts } = scan || (await bank.scan());
+  const lines = ['*Alert status*'];
+  if (running) {
+    const mine = cases.filter((c) => running.ids.includes(c.workId));
+    const done = mine.filter((c) => c.state === 'completed').length;
+    lines.push(
+      `RUN IN PROGRESS: ${mins(Date.now() - running.startedAt)} so far, attempt ${running.attempt}, ${done} of ${running.ids.length} completed.`,
+      `Last progress ${mins(Date.now() - running.lastChangeAt)} ago. I restart automatically after ${config.ftm.stallMin} min without progress. Send CANCEL to unlock.`
+    );
+  }
+  lines.push(
     `New: ${counts.new} | Assigned: ${counts.assigned} | Filed, not completed: ${counts.filed_not_completed} | Completed: ${counts.completed}`,
     '',
-  ];
-  for (const c of cases) {
-    lines.push(`#${c.workId} ${c.rule} ${c.subject}: ${c.state}${c.disposition ? ` (${c.disposition})` : ''}`);
-  }
+    ...caseLines(cases)
+  );
   const open = counts.new + counts.assigned + counts.filed_not_completed;
-  lines.push('', open ? `${open} to process. Reply PROCESS to run them.` : 'Nothing to process.');
+  if (!running) lines.push('', open ? `${open} to process. Reply PROCESS to run them.` : 'Nothing to process.');
   return lines.join('\n');
 }
 
 async function startProcess(reply) {
   if (running) {
-    const mins = Math.round((Date.now() - running.startedAt) / 60000);
-    return reply(`A run is already going (started ${mins} min ago). I will message you when it finishes.`);
+    return reply(`A run is already going (${mins(Date.now() - running.startedAt)}). Send STATUS for progress or CANCEL to unlock.`);
   }
   const before = await bank.scan();
   const ids = before.cases.filter((c) => c.state !== 'completed').map((c) => c.workId);
   if (!ids.length) return reply('Nothing to process. All alerts are completed.');
 
-  const req = await aa.startRun(STANDARD);
-  running = { startedAt: Date.now(), ids };
-  await reply(`Started the AA agent on ${ids.length} alerts: ${ids.map((i) => '#' + i).join(', ')}.\nIt takes about 5 minutes. I will send the results here.${req?.reference ? `\nAA ref: ${req.reference}` : ''}`);
-
+  await aa.startRun(STANDARD);
+  const now = Date.now();
+  running = { startedAt: now, ids, attempt: 1, lastChangeAt: now, lastSig: sig(before.cases, ids), cancelled: false };
+  await reply(`Started the AA agent on ${ids.length} alerts: ${ids.map((i) => '#' + i).join(', ')}.\nIt takes about 5 minutes. I will send the results here.`);
   watch(reply).catch((err) => console.error('[ftm] watch failed', err));
 }
 
-// Polls the bank until every case from the run is completed (or time runs out).
+async function cancel(reply) {
+  if (!running) return reply('No run is in progress.');
+  running.cancelled = true;
+  running = null;
+  await reply('Stopped waiting on the current run. PROCESS is unlocked. (Anything AA already filed stays filed.)');
+}
+
+// progress signature: the state of every case in this run
+const sig = (cases, ids) => ids.map((id) => `${id}:${(cases.find((c) => c.workId === id) || {}).state}`).join(',');
+
+// Polls the bank until every case is completed. Restarts the AA run when it stalls.
 async function watch(reply) {
-  const { startedAt, ids } = running;
-  const deadline = startedAt + config.ftm.runTimeoutMin * 60000;
+  const run = running;
+  const deadline = run.startedAt + config.ftm.runTimeoutMin * 60000;
   let cases = [];
-  try {
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 20000));
-      cases = (await Promise.all(ids.map((id) => bank.probe(id)))).filter(Boolean);
-      if (cases.length && cases.every((c) => c.state === 'completed')) break;
+  while (!run.cancelled && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 20000));
+    if (run.cancelled) return;
+    cases = (await Promise.all(run.ids.map((id) => bank.probe(id)))).filter(Boolean);
+    if (cases.length && cases.every((c) => c.state === 'completed')) break;
+
+    const s = sig(cases, run.ids);
+    if (s !== run.lastSig) {
+      run.lastSig = s;
+      run.lastChangeAt = Date.now();
+    } else if (Date.now() - run.lastChangeAt > config.ftm.stallMin * 60000 && run.attempt < config.ftm.maxAttempts) {
+      run.attempt++;
+      run.lastChangeAt = Date.now();
+      const left = cases.filter((c) => c.state !== 'completed').length;
+      console.warn(`[ftm] no progress for ${config.ftm.stallMin} min, restarting (attempt ${run.attempt})`);
+      try {
+        await aa.startRun(STANDARD);
+        await reply(`AA got stuck (no progress for ${config.ftm.stallMin} min). Started a fresh run for the ${left} unfinished case(s), attempt ${run.attempt}.`);
+      } catch (err) {
+        await reply(`AA got stuck and the restart failed: ${err.message}`.slice(0, 900));
+      }
     }
-  } finally {
-    running = null;
   }
-  const secs = Math.round((Date.now() - startedAt) / 1000);
+  if (run.cancelled) return;
+  if (running === run) running = null;
+
+  const secs = Date.now() - run.startedAt;
   const done = cases.filter((c) => c.state === 'completed').length;
   const lines = [
-    `*FTM run finished in ${Math.floor(secs / 60)}m ${secs % 60}s*`,
-    `${done} of ${ids.length} completed${done < ids.length ? ' (check AA Activity for the rest)' : ''}`,
+    `*FTM run finished in ${mins(secs)}*${run.attempt > 1 ? ` (${run.attempt} attempts)` : ''}`,
+    `${done} of ${run.ids.length} completed${done < run.ids.length ? '. Send PROCESS to retry the rest.' : ''}`,
     '',
   ];
   for (const c of cases) {
@@ -119,22 +163,20 @@ async function watch(reply) {
   await reply(lastResult);
 }
 
-// Optional: tell admins when new alerts show up.
+// Sends the status to admins when new alerts appear (including after a bank reset).
 async function checkForNewAlerts() {
   if (!config.ftm.enabled || running) return;
   try {
-    const { counts } = await bank.scan();
-    if (counts.new > 0 && counts.new !== lastNewCount) {
-      for (const phone of config.ftm.adminPhones) {
-        await whatsapp
-          .sendTextMessage(phone, `${counts.new} new AML alert(s) waiting. Reply PROCESS to run them or STATUS for details.`)
-          .catch((e) => console.warn('[ftm] alert notify failed (24h window closed?)', e.response?.data?.error?.message || e.message));
-      }
+    const scan = await bank.scan();
+    const newIds = scan.cases.filter((c) => c.state === 'new').map((c) => c.workId);
+    const s = newIds.join(',');
+    if (newIds.length && s !== lastNewSig) {
+      await notifyAdmins(`*${newIds.length} new AML case${newIds.length > 1 ? 's' : ''}*\n\n` + (await statusText(scan)));
     }
-    lastNewCount = counts.new;
+    lastNewSig = s;
   } catch (err) {
     console.error('[ftm] new-alert check failed', err.message);
   }
 }
 
-module.exports = { handle, checkForNewAlerts, STATUS_ONLY };
+module.exports = { handle, checkForNewAlerts };

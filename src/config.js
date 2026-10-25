@@ -45,8 +45,11 @@ module.exports = {
     // Paste it between the quotes below. BANK_API_KEY in .env still overrides it.
     bankApiKey: process.env.BANK_API_KEY || 'PASTE_BANK_KEY_HERE',
     scanRange: (process.env.FTM_SCAN_RANGE || '2100-2400').split('-').map((n) => parseInt(n, 10)),
-    runTimeoutMin: parseInt(process.env.FTM_RUN_TIMEOUT_MIN || '15', 10),
-    alertPollMin: parseInt(process.env.FTM_ALERT_POLL_MIN || '0', 10), // 0 = off
+    runTimeoutMin: parseInt(process.env.FTM_RUN_TIMEOUT_MIN || '20', 10),
+    alertPollMin: parseInt(process.env.FTM_ALERT_POLL_MIN || '1', 10), // 0 = off
+    stallMin: parseInt(process.env.FTM_STALL_MIN || '4', 10), // restart a run after this long without progress
+    maxAttempts: parseInt(process.env.FTM_MAX_ATTEMPTS || '3', 10),
+    keepAliveUrl: process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || '',
   },
   port: parseInt(process.env.PORT || '3000', 10),
 };
