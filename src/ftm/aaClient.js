@@ -17,23 +17,30 @@ async function token() {
   return cached.token;
 }
 
-// Starts FTM_RunAgent with the given instruction (its pInstruction input).
+// Starts FTM_RunAgent exactly the way the Control Room "Run now" button does:
+// POST /v4/automations/deploy with the process file id, the pInstruction input
+// and the Co-Pilot team that owns the request.
 async function startRun(instruction) {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '.').slice(2, 19);
   const body = {
-    processId: config.ftm.copilotProcessId,
-    inputs: { pInstruction: instruction },
+    botId: String(config.ftm.processFileId),
+    automationName: `FTM_RunAgent.WhatsApp.${stamp}`,
+    description: 'Started from WhatsApp',
+    botLabel: null,
+    botInput: { pInstruction: { type: 'STRING', string: instruction } },
+    processRequest: { teamId: String(config.ftm.teamId) },
+    executionType: 'RUN_NOW',
   };
-  if (config.ftm.copilotTeamId) body.teamId = config.ftm.copilotTeamId;
-  const r = await axios.post(`${config.ftm.aaUrl}/aari/v2/requests/create?mode=bot`, body, {
+  const r = await axios.post(`${config.ftm.aaUrl}/v4/automations/deploy`, body, {
     headers: { 'X-Authorization': await token(), 'Content-Type': 'application/json' },
     timeout: 60000,
     validateStatus: () => true,
   });
   if (r.status >= 300) {
     const detail = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-    throw new Error(`AA request create failed (${r.status}): ${detail.slice(0, 400)}`);
+    throw new Error(`AA deploy failed (${r.status}): ${detail.slice(0, 400)}`);
   }
-  return r.data; // includes the request id / reference
+  return { reference: r.data?.deploymentId || r.data?.automationId || '' };
 }
 
 module.exports = { startRun };

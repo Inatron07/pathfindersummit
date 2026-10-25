@@ -37,8 +37,9 @@ module.exports = {
     aaUrl: (process.env.AA_URL || 'https://aa-community.cloud.automationanywhere.digital').replace(/\/$/, ''),
     aaUsername: process.env.AA_USERNAME,
     aaApiKey: process.env.AA_API_KEY,
-    copilotProcessId: process.env.AA_COPILOT_PROCESS_ID,
-    copilotTeamId: process.env.AA_COPILOT_TEAM_ID || null,
+    // FTM_RunAgent public file id and the Pathfinder team id (from the Run now request)
+    processFileId: process.env.AA_PROCESS_FILE_ID || '100246079',
+    teamId: process.env.AA_TEAM_ID || '100000768',
     bankBase: process.env.BANK_API_BASE || 'https://fuxjyedytrihhdolobrz.supabase.co/functions/v1',
     // Shared competition key (same for every team), kept in code on purpose.
     // Paste it between the quotes below. BANK_API_KEY in .env still overrides it.
