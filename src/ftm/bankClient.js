@@ -27,6 +27,7 @@ async function get(path) {
 async function probe(workId) {
   const a = await get(`/api-alert/${workId}`);
   if (a.status !== 200) return null;
+  known.add(workId);
   const inv = await get(`/api-investigation/${workId}`);
   const i = inv.status === 200 ? inv.data || {} : {};
   const alert = a.data.alert || {};
@@ -51,6 +52,19 @@ async function probe(workId) {
   };
 }
 
+// Work ids we have seen at least once, so quick checks can skip the full range.
+const known = new Set();
+
+// Quick check: only the ids we already know about (4 alerts = 8 calls, about 1 second).
+async function quick() {
+  if (!known.size) return scan();
+  const cases = (await Promise.all([...known].map((id) => probe(id)))).filter(Boolean);
+  cases.sort((x, y) => x.workId - y.workId);
+  const counts = { new: 0, assigned: 0, filed_not_completed: 0, completed: 0 };
+  for (const r of cases) counts[r.state]++;
+  return { cases, counts };
+}
+
 // Scan a work-id range with limited parallelism (same approach as FTM_Status).
 async function scan() {
   const [lo, hi] = config.ftm.scanRange;
@@ -65,11 +79,11 @@ async function scan() {
       if (r) found.push(r);
     }
   }
-  await Promise.all(Array.from({ length: 16 }, worker));
+  await Promise.all(Array.from({ length: 32 }, worker));
   found.sort((x, y) => x.workId - y.workId);
   const counts = { new: 0, assigned: 0, filed_not_completed: 0, completed: 0 };
   for (const r of found) counts[r.state]++;
   return { cases: found, counts };
 }
 
-module.exports = { probe, scan };
+module.exports = { probe, scan, quick };

@@ -47,6 +47,8 @@ module.exports = {
     scanRange: (process.env.FTM_SCAN_RANGE || '2100-2400').split('-').map((n) => parseInt(n, 10)),
     runTimeoutMin: parseInt(process.env.FTM_RUN_TIMEOUT_MIN || '20', 10),
     alertPollMin: parseInt(process.env.FTM_ALERT_POLL_MIN || '1', 10), // 0 = off
+    alertPollSec: parseInt(process.env.FTM_ALERT_POLL_SEC || '15', 10), // quick check interval
+    fullScanMin: parseInt(process.env.FTM_FULL_SCAN_MIN || '5', 10), // full range scan interval
     stallMin: parseInt(process.env.FTM_STALL_MIN || '4', 10), // restart a run after this long without progress
     maxAttempts: parseInt(process.env.FTM_MAX_ATTEMPTS || '3', 10),
     keepAliveUrl: process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || '',

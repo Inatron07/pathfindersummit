@@ -172,10 +172,20 @@ async function watch(reply) {
 }
 
 // Sends the status to admins when new alerts appear (including after a bank reset).
+// Called every few seconds: a quick check of known ids, plus a full range scan every few minutes.
+let lastFullScan = 0;
+let checking = false;
 async function checkForNewAlerts() {
-  if (!config.ftm.enabled || running) return;
+  if (!config.ftm.enabled || running || checking) return;
+  checking = true;
+  const t0 = Date.now();
   try {
-    const scan = await bank.scan();
+    const full = Date.now() - lastFullScan > config.ftm.fullScanMin * 60000;
+    const scan = full ? await bank.scan() : await bank.quick();
+    if (full) {
+      lastFullScan = Date.now();
+      console.log(`[ftm] full scan ${scan.cases.length} alerts in ${Date.now() - t0} ms`);
+    }
     const newIds = scan.cases.filter((c) => c.state === 'new').map((c) => c.workId);
     const s = newIds.join(',');
     if (newIds.length && s !== lastNewSig) {
@@ -184,6 +194,8 @@ async function checkForNewAlerts() {
     lastNewSig = s;
   } catch (err) {
     console.error('[ftm] new-alert check failed', err.message);
+  } finally {
+    checking = false;
   }
 }
 

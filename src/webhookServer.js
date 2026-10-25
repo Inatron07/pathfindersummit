@@ -217,7 +217,9 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 
 // Optional: ping admins on WhatsApp when new AML alerts appear.
 if (config.ftm.enabled && config.ftm.alertPollMin > 0) {
-  cron.schedule(`*/${config.ftm.alertPollMin} * * * *`, () => ftm.checkForNewAlerts());
+  // quick check every FTM_ALERT_POLL_SEC seconds (known ids), full scan every FTM_FULL_SCAN_MIN minutes
+  setInterval(() => ftm.checkForNewAlerts(), config.ftm.alertPollSec * 1000);
+  ftm.checkForNewAlerts();
 }
 // Keep a free Render instance awake so the alert check keeps running
 // (free services sleep after 15 min without inbound traffic).
