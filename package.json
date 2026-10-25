@@ -1,0 +1,23 @@
+{
+  "name": "whatsapp-outreach-agent",
+  "version": "1.0.0",
+  "description": "WhatsApp outreach + conversational agent for real estate lead follow-up, powered by Claude and Postgres.",
+  "main": "src/webhookServer.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/webhookServer.js",
+    "dev": "node --watch src/webhookServer.js",
+    "outreach": "node scripts/sendOutreachBatch.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "node-cron": "^3.0.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

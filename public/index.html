@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KineSys — WhatsApp Test Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Petrona:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #1E3A5F;
+    --ink: #1A2130;
+    --paper: #F6F4EF;
+    --line: #E4E0D8;
+    --muted: #9A968C;
+    --muted-2: #6B6F76;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Public Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  #app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Icon rail */
+  .rail {
+    width: 76px; flex-shrink: 0; background: var(--ink);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 20px 0; gap: 10px;
+  }
+  .rail .badge {
+    width: 36px; height: 36px; border-radius: 9px; background: #000;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 18px;
+  }
+  .rail .badge svg { display: block; }
+
+  /* Contact list */
+  .contacts {
+    width: 340px; flex-shrink: 0; background: #FFFFFF;
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .contacts-head { padding: 20px 20px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .wordmark { font-family: 'Petrona', serif; font-weight: 700; font-size: 20px; color: var(--ink); letter-spacing: 0.2px; }
+  .wordmark span { color: var(--accent); }
+  .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .search-row { display: flex; gap: 8px; padding: 14px 16px 8px; flex-shrink: 0; }
+  .search-row input {
+    flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+    font-family: inherit; font-size: 13px; outline: none; background: var(--paper); color: var(--ink);
+  }
+  .search-row input:focus { border-color: var(--accent); }
+  .icon-btn, .add-btn {
+    width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line);
+    background: #fff; color: var(--accent); font-size: 18px; line-height: 1; cursor: pointer;
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover, .add-btn:hover { background: var(--paper); }
+  .icon-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .filter-row { display: flex; gap: 8px; padding: 0 16px 12px; flex-shrink: 0; }
+  .filter-row select {
+    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px;
+    font-family: inherit; font-size: 11.5px; outline: none; background: var(--paper); color: var(--muted-2);
+  }
+  .filter-row select:focus { border-color: var(--accent); }
+
+  .add-form {
+    display: none; flex-direction: column; gap: 8px; padding: 4px 16px 14px; border-bottom: 1px solid var(--line);
+  }
+  .add-form.open { display: flex; }
+  .add-form input {
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-family: inherit;
+    font-size: 12.5px; outline: none; background: var(--paper); color: var(--ink);
+  }
+  .add-form input:focus { border-color: var(--accent); }
+  .add-form-row { display: flex; gap: 6px; }
+  .add-form button {
+    border: none; border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+    font-weight: 600; cursor: pointer;
+  }
+  .add-form .save { background: var(--accent); color: #fff; flex: 1; }
+  .add-form .cancel { background: transparent; color: var(--muted-2); }
+
+  .contact-list { flex: 1; overflow-y: auto; }
+  .contact-row {
+    display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px;
+    cursor: pointer; border-bottom: 1px solid #F0EDE6;
+  }
+  .contact-row:hover { background: var(--paper); }
+  .contact-row.active { background: #EEF2F6; }
+  .contact-row.checked { background: #F2F6FB; }
+  .c-checkbox {
+    width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--line);
+    flex-shrink: 0; margin-top: 11px; display: flex; align-items: center; justify-content: center;
+    background: #fff; pointer-events: none;
+  }
+  .c-checkbox.on { background: var(--accent); border-color: var(--accent); }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+    flex-shrink: 0; font-family: 'Petrona', serif;
+  }
+  .c-main { flex: 1; min-width: 0; }
+  .c-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .c-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-time { font-size: 10.5px; color: var(--muted); flex-shrink: 0; }
+  .c-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 3px; }
+  .c-preview { font-size: 12px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .c-phone { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .pill {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 2px 7px; border-radius: 20px; flex-shrink: 0; white-space: nowrap;
+  }
+  .pill-pending { background: #EDEBE5; color: #8A8577; }
+  .pill-sent { background: #E4ECF5; color: #2B5788; }
+  .pill-replied, .pill-in_conversation { background: #E3EBE4; color: #33684A; }
+  .pill-needs_human { background: #FBEBDD; color: #A15C1F; }
+  .pill-booked_viewing { background: #DEF0E5; color: #1F7A46; }
+  .pill-not_interested { background: #F5E4E2; color: #A2412F; }
+  .pill-send_failed { background: #F5E4E2; color: #A2412F; }
+  .empty-state { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* Chat panel */
+  .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .chat-head {
+    flex-shrink: 0; padding: 16px 24px; border-bottom: 1px solid var(--line); background: #fff;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .chat-head-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .chat-head .c-name { font-size: 15px; }
+  .chat-head .c-phone { font-size: 12px; }
+  .head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .template-btn {
+    border: 1px solid var(--accent); background: #fff; color: var(--accent);
+    font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 14px;
+    border-radius: 20px; cursor: pointer; white-space: nowrap;
+  }
+  .template-btn:hover { background: #EEF2F6; }
+  .template-btn:disabled { opacity: 0.5; cursor: default; }
+  .ghost-btn {
+    border: none; background: none; color: var(--muted-2); font-family: inherit; font-size: 12px;
+    font-weight: 600; cursor: pointer; padding: 6px 4px; white-space: nowrap;
+  }
+  .ghost-btn:hover { color: var(--accent); }
+
+  .messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 10px; background: var(--paper); }
+  .bubble-row { display: flex; }
+  .bubble-row.out { justify-content: flex-end; }
+  .bubble {
+    max-width: 62%; padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.45;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .bubble.in { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .bubble.out { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble-time { font-size: 10px; margin-top: 4px; opacity: 0.6; }
+  .bubble.out .bubble-time { color: #E4ECF5; }
+  .bubble.in .bubble-time { color: var(--muted); }
+  .center-msg { margin: auto; text-align: center; color: var(--muted); font-size: 13px; }
+
+  .composer { flex-shrink: 0; padding: 14px 24px 20px; background: #fff; border-top: 1px solid var(--line); }
+  .composer-note { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .composer-row { display: flex; align-items: center; gap: 12px; }
+  .composer-row input {
+    flex: 1; border: 1px solid var(--line); border-radius: 22px; padding: 12px 18px;
+    font-family: inherit; font-size: 13.5px; outline: none; background: var(--paper); color: var(--ink);
+  }
+  .composer-row input:focus { border-color: var(--accent); }
+  .send-btn {
+    width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer;
+  }
+  .send-btn:disabled { opacity: 0.5; cursor: default; }
+
+  /* Bulk outreach pane */
+  .outreach { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
+  .outreach-head {
+    flex-shrink: 0; padding: 16px 24px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  }
+  .outreach-title { font-weight: 700; font-size: 15px; }
+  .outreach-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .outreach-body { flex: 1; overflow-y: auto; padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; background: var(--paper);
+    border: 1px solid var(--line); border-radius: 20px; padding: 4px 6px 4px 10px; font-size: 12px;
+  }
+  .chip button {
+    border: none; background: #DDD8CC; color: var(--muted-2); width: 16px; height: 16px; border-radius: 50%;
+    font-size: 10px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .chip-more { font-size: 12px; color: var(--muted); padding: 4px 4px; }
+
+  .field-label { font-size: 12px; font-weight: 600; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; }
+  .mode-toggle { display: flex; flex-direction: column; gap: 10px; }
+  .mode-toggle label {
+    display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.4;
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+  }
+  .mode-toggle input { margin-top: 3px; accent-color: var(--accent); }
+  .mode-toggle label:has(input:checked) { border-color: var(--accent); background: #F2F6FB; }
+
+  .outreach-note { font-size: 12px; color: var(--muted-2); background: var(--paper); border-radius: 8px; padding: 10px 12px; line-height: 1.5; }
+  .outreach-note.warn { background: #FBEBDD; color: #8A4E17; }
+  .outreach-note code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
+
+  .bulk-textarea {
+    width: 100%; min-height: 90px; border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+    font-family: inherit; font-size: 13.5px; outline: none; resize: vertical; background: var(--paper); color: var(--ink);
+  }
+  .bulk-textarea:focus { border-color: var(--accent); }
+
+  .send-bulk-btn {
+    border: none; background: var(--accent); color: #fff; font-family: inherit; font-size: 13.5px;
+    font-weight: 700; padding: 12px 18px; border-radius: 10px; cursor: pointer;
+  }
+  .send-bulk-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .results-list { display: flex; flex-direction: column; gap: 6px; }
+  .result-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 7px 10px; border-radius: 8px; background: var(--paper); }
+  .result-row.ok { color: #1F7A46; }
+  .result-row.fail { color: #A2412F; }
+  .result-row .r-err { color: var(--muted-2); font-size: 11.5px; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #2A2016; color: #fff; padding: 11px 18px; border-radius: 10px;
+    font-size: 12.5px; max-width: 480px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 50;
+  }
+  .toast.show { opacity: 1; }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #DAD5C9; border-radius: 8px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="rail">
+    <div class="badge">
+      <svg width="22" height="22" viewBox="0 0 36 36" fill="none">
+        <line x1="18" y1="9" x2="10" y2="25" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="18" y1="9" x2="26" y2="25" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="10" y1="25" x2="26" y2="25" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+        <circle cx="18" cy="9" r="2.1" fill="#FFFFFF"/>
+        <circle cx="10" cy="25" r="2.1" fill="#FFFFFF"/>
+        <circle cx="26" cy="25" r="2.1" fill="#FFFFFF"/>
+        <circle cx="18" cy="20" r="1.6" fill="#FFFFFF"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="contacts">
+    <div class="contacts-head">
+      <div class="wordmark">Kine<span>Sys</span></div>
+      <div class="sub" id="sub-label">WhatsApp test console</div>
+    </div>
+    <div class="search-row">
+      <input id="search" type="text" placeholder="Search name or phone">
+      <button class="icon-btn" id="bulk-toggle" title="Select leads for bulk outreach">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </button>
+      <button class="add-btn" id="add-toggle" title="Add a lead">+</button>
+    </div>
+    <div class="filter-row">
+      <select id="filter-area"><option value="">All areas</option></select>
+      <select id="filter-interest"><option value="">All interests</option></select>
+    </div>
+    <div class="add-form" id="add-form">
+      <input id="new-name" type="text" placeholder="Name">
+      <div class="add-form-row">
+        <input id="new-phone" type="text" placeholder="Phone, e.g. 919604139376" style="flex:1;">
+      </div>
+      <input id="new-area" type="text" placeholder="Area (optional)">
+      <div class="add-form-row">
+        <button class="save" id="new-save">Add lead</button>
+        <button class="cancel" id="new-cancel">Cancel</button>
+      </div>
+    </div>
+    <div class="contact-list" id="contact-list">
+      <div class="empty-state">Loading leads…</div>
+    </div>
+  </div>
+
+  <div class="chat" id="chat-pane">
+    <div class="chat-head" id="chat-head" style="display:none;">
+      <div class="chat-head-id">
+        <div class="avatar" id="chat-avatar">?</div>
+        <div class="c-main">
+          <div class="c-name" id="chat-name">—</div>
+          <div class="c-phone" id="chat-phone">—</div>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="template-btn" id="template-send">Send template</button>
+      </div>
+    </div>
+    <div class="messages" id="messages">
+      <div class="center-msg">Pick a lead on the left, or add one, to start testing.</div>
+    </div>
+    <div class="composer" id="composer" style="display:none;">
+      <div class="composer-note">
+        Free text only works within 24h of the lead's last WhatsApp message. Outside that window, use
+        <strong>Send template</strong> above to (re)open the conversation.
+      </div>
+      <div class="composer-row">
+        <input id="msg-input" type="text" placeholder="Type a message">
+        <button class="send-btn" id="msg-send" title="Send">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="outreach" id="outreach-pane" style="display:none;">
+    <div class="outreach-head">
+      <div>
+        <div class="outreach-title">Bulk outreach</div>
+        <div class="outreach-sub" id="outreach-count">0 selected</div>
+      </div>
+      <div class="head-actions">
+        <button class="ghost-btn" id="select-all-filtered">Select all filtered</button>
+        <button class="ghost-btn" id="clear-selection">Clear</button>
+        <button class="template-btn" id="exit-bulk">Back to chat</button>
+      </div>
+    </div>
+    <div class="outreach-body">
+      <div>
+        <div class="field-label">Selected leads</div>
+        <div class="chip-row" id="outreach-chips"></div>
+      </div>
+
+      <div>
+        <div class="field-label">Message type</div>
+        <div class="mode-toggle">
+          <label>
+            <input type="radio" name="bulk-mode" value="template" checked>
+            <span><strong>Approved template</strong> — reaches anyone, including cold or first-time leads. Required by WhatsApp policy for the first message.</span>
+          </label>
+          <label>
+            <input type="radio" name="bulk-mode" value="text">
+            <span><strong>Custom message</strong> — your own wording, but only actually delivers to leads who messaged in within the last 24 hours.</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="template-preview" class="outreach-note">
+        Sends "<span id="template-name-label">…</span>", personalized with each lead's first name — the same message <code>npm run outreach</code> sends.
+      </div>
+      <textarea id="bulk-text" class="bulk-textarea" placeholder="Type your outreach message…" style="display:none;"></textarea>
+      <div class="outreach-note warn" id="text-warning" style="display:none;"></div>
+
+      <div>
+        <button class="send-bulk-btn" id="send-bulk">Send to 0 leads</button>
+      </div>
+
+      <div id="outreach-results"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const MAX_BULK_RECIPIENTS = 100;
+  const state = {
+    leads: [], selectedPhone: null, meta: null,
+    query: '', filterArea: '', filterInterest: '',
+    bulkMode: false, selected: new Set(), bulkTextMode: 'template', sending: false,
+  };
+  let leadsTimer = null;
+  let messagesTimer = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  function toast(msg, isError) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.style.background = isError ? '#7A2E22' : '#2A2016';
+    t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 4200);
+  }
+
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    let body = null;
+    try { body = await res.json(); } catch (e) { /* no body */ }
+    if (!res.ok) throw new Error((body && body.error) || ('Request failed (' + res.status + ')'));
+    return body;
+  }
+
+  function initials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const now = new Date();
+    const sameDay = d.toDateString() === now.toDateString();
+    return sameDay
+      ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function statusLabel(status) {
+    if (!status) return 'pending';
+    return status.replace(/_/g, ' ');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function renderMeta() {
+    if (!state.meta) return;
+    $('sub-label').textContent = state.meta.agentName + ' · ' + state.meta.businessName;
+    $('template-name-label').textContent = state.meta.templateName;
+  }
+
+  // ── filters ──
+  function populateFilterOptions() {
+    const areas = Array.from(new Set(state.leads.map((l) => l.area).filter(Boolean))).sort();
+    const interests = Array.from(new Set(state.leads.map((l) => l.property_interest).filter(Boolean))).sort();
+    fillSelect($('filter-area'), areas, state.filterArea, 'All areas');
+    fillSelect($('filter-interest'), interests, state.filterInterest, 'All interests');
+  }
+
+  function fillSelect(select, values, current, allLabel) {
+    const prev = select.value || current;
+    select.innerHTML = '<option value="">' + allLabel + '</option>' +
+      values.map((v) => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join('');
+    if (prev && values.includes(prev)) select.value = prev;
+  }
+
+  function filteredLeads() {
+    const q = state.query.trim().toLowerCase();
+    return state.leads.filter((l) => {
+      if (state.filterArea && l.area !== state.filterArea) return false;
+      if (state.filterInterest && l.property_interest !== state.filterInterest) return false;
+      if (!q) return true;
+      return (l.name || '').toLowerCase().includes(q) ||
+        (l.phone || '').toLowerCase().includes(q) ||
+        (l.area || '').toLowerCase().includes(q) ||
+        (l.property_interest || '').toLowerCase().includes(q);
+    });
+  }
+
+  // ── contact list ──
+  function renderContacts() {
+    const list = $('contact-list');
+    const leads = filteredLeads();
+    if (!leads.length) {
+      list.innerHTML = '<div class="empty-state">' +
+        (state.leads.length ? 'No leads match your filters.' : 'No leads yet — click + to add one.') +
+        '</div>';
+      return;
+    }
+    list.innerHTML = leads.map((l) => {
+      const isChecked = state.selected.has(l.phone);
+      const active = (!state.bulkMode && l.phone === state.selectedPhone) ? ' active' : (isChecked ? ' checked' : '');
+      const preview = l.last_message
+        ? (l.last_direction === 'out' ? 'You: ' : '') + l.last_message
+        : 'No messages yet';
+      const status = l.status || 'pending';
+      const checkboxHtml = state.bulkMode
+        ? '<div class="c-checkbox' + (isChecked ? ' on' : '') + '">' +
+            (isChecked ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' : '') +
+          '</div>'
+        : '';
+      return (
+        '<div class="contact-row' + active + '" data-phone="' + l.phone + '">' +
+          checkboxHtml +
+          '<div class="avatar">' + initials(l.name) + '</div>' +
+          '<div class="c-main">' +
+            '<div class="c-top">' +
+              '<div class="c-name">' + escapeHtml(l.name || l.phone) + '</div>' +
+              '<div class="c-time">' + fmtTime(l.last_message_at || l.created_at) + '</div>' +
+            '</div>' +
+            '<div class="c-bottom">' +
+              '<div class="c-preview">' + escapeHtml(preview) + '</div>' +
+              '<div class="pill pill-' + status + '">' + escapeHtml(statusLabel(status)) + '</div>' +
+            '</div>' +
+            '<div class="c-phone">+' + l.phone + (l.area ? ' · ' + escapeHtml(l.area) : '') + '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    list.querySelectorAll('.contact-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const phone = row.getAttribute('data-phone');
+        if (state.bulkMode) toggleSelect(phone);
+        else selectLead(phone);
+      });
+    });
+  }
+
+  async function loadLeads(preserveSelection) {
+    try {
+      const leads = await api('/api/leads');
+      state.leads = leads;
+      populateFilterOptions();
+      renderContacts();
+      if (preserveSelection && state.selectedPhone) {
+        const still = leads.find((l) => l.phone === state.selectedPhone);
+        if (still) renderChatHeader(still);
+      }
+      if (state.bulkMode) renderOutreachPane();
+    } catch (err) {
+      $('contact-list').innerHTML = '<div class="empty-state">' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  // ── 1:1 chat ──
+  function renderChatHeader(lead) {
+    $('chat-head').style.display = 'flex';
+    $('composer').style.display = 'block';
+    $('chat-avatar').textContent = initials(lead.name);
+    $('chat-name').textContent = lead.name || lead.phone;
+    $('chat-phone').textContent = '+' + lead.phone + (lead.area ? ' · ' + lead.area : '');
+    const label = state.meta ? 'Send template (' + state.meta.templateName + ')' : 'Send template';
+    $('template-send').textContent = label;
+  }
+
+  async function selectLead(phone) {
+    state.selectedPhone = phone;
+    renderContacts();
+    const lead = state.leads.find((l) => l.phone === phone);
+    if (lead) renderChatHeader(lead);
+    await loadMessages(phone);
+    clearInterval(messagesTimer);
+    messagesTimer = setInterval(() => loadMessages(phone, true), 3000);
+  }
+
+  function renderMessages(history) {
+    const box = $('messages');
+    if (!history.length) {
+      box.innerHTML = '<div class="center-msg">No messages yet with this lead. Use Send template to start, or wait for them to write in.</div>';
+      return;
+    }
+    const nearBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+    box.innerHTML = history.map((m) => (
+      '<div class="bubble-row ' + m.direction + '">' +
+        '<div class="bubble ' + m.direction + '">' +
+          escapeHtml(m.message) +
+          '<div class="bubble-time">' + fmtTime(m.created_at) + '</div>' +
+        '</div>' +
+      '</div>'
+    )).join('');
+    if (nearBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  let lastMsgCount = -1;
+  async function loadMessages(phone, isPoll) {
+    try {
+      const history = await api('/api/messages/' + encodeURIComponent(phone));
+      if (isPoll && history.length === lastMsgCount) return; // nothing new, skip re-render/flicker
+      lastMsgCount = history.length;
+      renderMessages(history);
+      if (isPoll) loadLeads(true); // refresh preview/status in the list too
+    } catch (err) {
+      if (!isPoll) $('messages').innerHTML = '<div class="center-msg">' + escapeHtml(err.message) + '</div>';
+    }
+  }
+
+  async function sendText() {
+    const input = $('msg-input');
+    const text = input.value.trim();
+    if (!text || !state.selectedPhone) return;
+    const btn = $('msg-send');
+    btn.disabled = true;
+    try {
+      await api('/api/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: state.selectedPhone, text }),
+      });
+      input.value = '';
+      await loadMessages(state.selectedPhone);
+      loadLeads(true);
+    } catch (err) {
+      toast('Send failed: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function sendTemplate() {
+    if (!state.selectedPhone) return;
+    const btn = $('template-send');
+    btn.disabled = true;
+    try {
+      await api('/api/send-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: state.selectedPhone }),
+      });
+      toast('Outreach template sent.');
+      await loadMessages(state.selectedPhone);
+      loadLeads(true);
+    } catch (err) {
+      toast('Template send failed: ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function addLead() {
+    const name = $('new-name').value.trim();
+    const phone = $('new-phone').value.replace(/\D/g, '');
+    const area = $('new-area').value.trim();
+    if (!phone) { toast('Enter a phone number (digits only, with country code).', true); return; }
+    try {
+      const lead = await api('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, area }),
+      });
+      $('new-name').value = ''; $('new-phone').value = ''; $('new-area').value = '';
+      $('add-form').classList.remove('open');
+      await loadLeads();
+      if (!state.bulkMode) selectLead(lead.phone);
+    } catch (err) {
+      toast('Could not add lead: ' + err.message, true);
+    }
+  }
+
+  // ── bulk outreach ──
+  function toggleBulkMode() {
+    state.bulkMode = !state.bulkMode;
+    $('bulk-toggle').classList.toggle('active', state.bulkMode);
+    $('chat-pane').style.display = state.bulkMode ? 'none' : 'flex';
+    $('outreach-pane').style.display = state.bulkMode ? 'flex' : 'none';
+    clearInterval(messagesTimer);
+    renderContacts();
+    if (state.bulkMode) renderOutreachPane();
+  }
+
+  function toggleSelect(phone) {
+    if (state.selected.has(phone)) state.selected.delete(phone);
+    else state.selected.add(phone);
+    renderContacts();
+    renderOutreachPane();
+  }
+
+  function selectAllFiltered() {
+    filteredLeads().forEach((l) => state.selected.add(l.phone));
+    renderContacts();
+    renderOutreachPane();
+  }
+
+  function clearSelection() {
+    state.selected.clear();
+    renderContacts();
+    renderOutreachPane();
+  }
+
+  function isWithinWindow(lead) {
+    if (!lead || lead.last_direction !== 'in' || !lead.last_message_at) return false;
+    return (Date.now() - new Date(lead.last_message_at).getTime()) < 24 * 60 * 60 * 1000;
+  }
+
+  function renderOutreachPane() {
+    const selectedLeads = state.leads.filter((l) => state.selected.has(l.phone));
+    const n = selectedLeads.length;
+
+    $('outreach-count').textContent = n + ' selected' + (n > MAX_BULK_RECIPIENTS ? ' (max ' + MAX_BULK_RECIPIENTS + ' per send)' : '');
+
+    const shown = selectedLeads.slice(0, 12);
+    const extra = n - shown.length;
+    $('outreach-chips').innerHTML =
+      (shown.length
+        ? shown.map((l) =>
+            '<span class="chip">' + escapeHtml(l.name || l.phone) +
+              '<button data-phone="' + l.phone + '" title="Remove">×</button></span>'
+          ).join('')
+        : '<span class="chip-more">Nobody selected yet — click leads on the left, or Select all filtered.</span>'
+      ) + (extra > 0 ? '<span class="chip-more">+' + extra + ' more</span>' : '');
+
+    $('outreach-chips').querySelectorAll('button[data-phone]').forEach((btn) => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); toggleSelect(btn.getAttribute('data-phone')); });
+    });
+
+    const isTemplate = state.bulkTextMode === 'template';
+    $('template-preview').style.display = isTemplate ? 'block' : 'none';
+    $('bulk-text').style.display = isTemplate ? 'none' : 'block';
+
+    if (!isTemplate) {
+      const outside = selectedLeads.filter((l) => !isWithinWindow(l)).length;
+      const warn = $('text-warning');
+      if (outside > 0) {
+        warn.style.display = 'block';
+        warn.textContent = outside + ' of ' + n + ' selected lead' + (n === 1 ? '' : 's') +
+          ' haven\'t messaged in within the last 24h — the custom message will fail for them. Use the approved template instead, or send template first.';
+      } else {
+        warn.style.display = 'none';
+      }
+    } else {
+      $('text-warning').style.display = 'none';
+    }
+
+    const sendBtn = $('send-bulk');
+    sendBtn.textContent = state.sending ? 'Sending…' : ('Send to ' + n + ' lead' + (n === 1 ? '' : 's'));
+    sendBtn.disabled = state.sending || n === 0 || n > MAX_BULK_RECIPIENTS;
+  }
+
+  async function sendBulk() {
+    const phones = Array.from(state.selected);
+    if (!phones.length) return;
+    const mode = state.bulkTextMode;
+    const text = $('bulk-text').value.trim();
+    if (mode === 'text' && !text) { toast('Type a message first.', true); return; }
+
+    state.sending = true;
+    renderOutreachPane();
+    $('outreach-results').innerHTML = '<div class="outreach-note">Sending' +
+      (phones.length > 1 ? ' — this is rate-limited, so it can take a bit for larger batches' : '') + '…</div>';
+
+    try {
+      const body = mode === 'text' ? { phones, mode: 'text', text } : { phones, mode: 'template' };
+      const { results } = await api('/api/send-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const okCount = results.filter((r) => r.ok).length;
+      toast(okCount + '/' + results.length + ' sent successfully.', okCount < results.length);
+      $('outreach-results').innerHTML = '<div class="field-label">Results</div><div class="results-list">' +
+        results.map((r) =>
+          '<div class="result-row ' + (r.ok ? 'ok' : 'fail') + '">' +
+            '<span>' + escapeHtml(r.name || r.phone) + ' (+' + r.phone + ')</span>' +
+            '<span>' + (r.ok ? 'Sent' : '<span class="r-err">' + escapeHtml(r.error || 'Failed') + '</span>') + '</span>' +
+          '</div>'
+        ).join('') + '</div>';
+      loadLeads(true);
+    } catch (err) {
+      toast('Bulk send failed: ' + err.message, true);
+      $('outreach-results').innerHTML = '<div class="outreach-note warn">' + escapeHtml(err.message) + '</div>';
+    } finally {
+      state.sending = false;
+      renderOutreachPane();
+    }
+  }
+
+  // ── wiring ──
+  $('add-toggle').addEventListener('click', () => $('add-form').classList.toggle('open'));
+  $('new-cancel').addEventListener('click', () => $('add-form').classList.remove('open'));
+  $('new-save').addEventListener('click', addLead);
+  $('search').addEventListener('input', (e) => { state.query = e.target.value; renderContacts(); });
+  $('filter-area').addEventListener('change', (e) => { state.filterArea = e.target.value; renderContacts(); });
+  $('filter-interest').addEventListener('change', (e) => { state.filterInterest = e.target.value; renderContacts(); });
+  $('msg-send').addEventListener('click', sendText);
+  $('msg-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendText(); });
+  $('template-send').addEventListener('click', sendTemplate);
+
+  $('bulk-toggle').addEventListener('click', toggleBulkMode);
+  $('exit-bulk').addEventListener('click', toggleBulkMode);
+  $('select-all-filtered').addEventListener('click', selectAllFiltered);
+  $('clear-selection').addEventListener('click', clearSelection);
+  $('send-bulk').addEventListener('click', sendBulk);
+  document.querySelectorAll('input[name="bulk-mode"]').forEach((r) => {
+    r.addEventListener('change', (e) => { state.bulkTextMode = e.target.value; renderOutreachPane(); });
+  });
+
+  (async function init() {
+    try { state.meta = await api('/api/meta'); renderMeta(); } catch (e) { /* non-fatal */ }
+    await loadLeads();
+    clearInterval(leadsTimer);
+    leadsTimer = setInterval(() => loadLeads(true), 6000);
+  })();
+})();
+</script>
+
+</body>
+</html>
